@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <Adafruit_PWMServoDriver.h>
+// We are assuming JBartlett has included the library for us
+#include "PinChangeInterrupt.h"
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
@@ -15,6 +17,8 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 // Determined through experimentation.
 #define SERVO_TICKS_MIN 150
 #define SERVO_TICKS_MAX 600
+
+int encoder_ticks, photo_resist_pin, ir_led_pin;
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
@@ -108,6 +112,23 @@ void loop() {
           pwm.setPWM(channel, 0, pulseTicks);
         }
         break;
+	  case 'e':
+		// Case for rotary encoder
+		encoder_ticks = 0;
+		while (!Serial.available()) {}
+		// First character recieved should be the IR LED Pin
+		ir_led_pin = Serial.read();
+		while (!Serial.available()) {}
+		// Second character recieved should be the IR LED Pin
+		photo_resist_pin = Serial.read();
+
+		pinMode(ir_led_pin, OUTPUT);
+		// Set IR pin high to enable rotary encoder
+		digitalWrite(ir_led_pin, HIGH);
+		pinMode(photo_resist_pin, INPUT);
+		// Attaches an interrupt onto the photo resistor pin that is triggered on the rising edge
+		attachPCINT(digitalPinToPCINT(photo_resist_pin), PHOTO_RESIST_ISR, RISING);
+		break;
       default:
         // A problem here: we do not know how to handle the command!
         // Just ignore this for now.
@@ -115,4 +136,11 @@ void loop() {
     }
     Serial.print("\n");
   }
+}
+
+// Interrupt service routine for the rotary encoder
+// Triggers on rising edge of the photo transistor
+// i.e. When the white first appears. 
+void PHOTO_RESIST_ISR() {
+	encoder_ticks++;
 }
